@@ -41,6 +41,7 @@ ArduinoFFT FFT = ArduinoFFT(vReal, vImag, SAMPLES, SAMPLING_FREQUENCY);
 // Thermal expansion calculation
 #define BRIDGE_LENGTH 50.0 // meters
 #define EXPANSION_COEFF 0.000012 // per degree Celsius (steel)
+#define EXPANSION_RATE_THRESHOLD_PER_HOUR 0.01 // meters/hour (example: 1cm/hr)
 
 // ------- Globals -------
 char auth[] = BLYNK_AUTH_TOKEN;
@@ -56,6 +57,10 @@ bool vibration_alert = false;
 bool tilt_alert = false;
 bool temp_alert = false;
 bool strain_alert = false;
+
+// Expansion rate monitoring
+float prev_expansion = 0.0;
+unsigned long prev_expansion_time = 0; // in ms
 
 // ---- Helper Functions ----
 void sendAlert(String msg) {
@@ -73,9 +78,9 @@ void checkVibrationAndResonance() {
     delay(1000 / SAMPLING_FREQUENCY);
   }
   // FFT
-FFT.windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD);
-FFT.compute(FFT_FORWARD);
-FFT.complexToMagnitude();
+  FFT.windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD);
+  FFT.compute(FFT_FORWARD);
+  FFT.complexToMagnitude();
   // Find major frequency
   double maxMag = 0;
   int maxIndex = 0;
@@ -132,6 +137,22 @@ void checkTemperatureGradientAndExpansion() {
   float expansion = BRIDGE_LENGTH * EXPANSION_COEFF * temp_gradient; // delta L
 
   Serial.print("Expansion: "); Serial.println(expansion);
+
+  // --- Rate of change calculation (per hour) ---
+  unsigned long now = millis();
+  if (prev_expansion_time > 0) {
+    float hours = (now - prev_expansion_time) / (1000.0 * 60.0 * 60.0); // ms to hours
+    if (hours > 0) {
+      float rate_per_hour = (expansion - prev_expansion) / hours;
+      Serial.print("Expansion rate per hour: "); Serial.println(rate_per_hour, 6);
+      if (abs(rate_per_hour) > EXPANSION_RATE_THRESHOLD_PER_HOUR) {
+        sendAlert("ALERT: High rate of bridge expansion/contraction detected!");
+      }
+    }
+  }
+  prev_expansion = expansion;
+  prev_expansion_time = now;
+  // --- End rate of change ---
 
   // Alert on abnormal expansion (example threshold: > 1cm = 0.01m)
   if (abs(expansion) > 0.01) {
