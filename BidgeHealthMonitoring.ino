@@ -8,19 +8,23 @@
 #include <BlynkSimpleEsp32.h>
 #include <OneWire.h>
 #include <DallasTemperature.h>
-#include <Adafruit_ADS1X15.h> // For strain gauge via ADC
+#include <HX711.h>
 #include <arduinoFFT.h>
 
 // Temperature sensors
 #define ONE_WIRE_BUS_1 4  // GPIO for first temperature sensor
 #define ONE_WIRE_BUS_2 5  // GPIO for second temperature sensor
 
-// Strain gauge via ADS1115 ADC
-Adafruit_ADS1115 ads;
+// HX711 pins for strain gauge/load cell
+#define HX711_DOUT 18
+#define HX711_SCK  19
 
 // MPU6050 sensors
 Adafruit_MPU6050 mpu_vibration; // Address 0x68 (AD0 to GND)
 Adafruit_MPU6050 mpu_tilt;      // Address 0x69 (AD0 to 3.3V)
+
+// HX711 for strain gauge / load cell
+HX711 scale;
 
 // FFT
 #define SAMPLES 64 // Must be power of 2
@@ -168,9 +172,8 @@ void checkTemperatureGradientAndExpansion() {
 }
 
 void checkStrainGauge() {
-  int16_t adc0 = ads.readADC_SingleEnded(0);
-  // Calibrate to convert ADC to load units
-  double load = (adc0 - 15000) * (LOAD_LIMIT / 12000.0); // Example mapping, calibrate for your sensor
+  // Read load cell value from HX711, average 10 samples
+  float load = scale.get_units(10);
 
   Serial.print("Load: "); Serial.println(load);
 
@@ -199,11 +202,17 @@ void setup() {
     while (1) delay(10);
   }
 
-  // ADC for strain gauge
-  if (!ads.begin()) {
-    Serial.println("Failed to find ADS1115 ADC");
-    while (1) delay(10);
-  }
+  // HX711 for strain gauge/load cell
+  scale.begin(HX711_DOUT, HX711_SCK);
+
+  // If you want to tare (zero) the scale at start:
+  Serial.println("Taring the load cell, please ensure it's unloaded...");
+  scale.tare();
+  Serial.println("Tare complete.");
+
+  // If you want to calibrate, set the scale factor here
+  // scale.set_scale(calibration_factor);
+  // You will need to determine this value for your hardware
 
   // Temp sensors
   sensors1.begin();
