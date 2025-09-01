@@ -18,8 +18,9 @@
 // Strain gauge via ADS1115 ADC
 Adafruit_ADS1115 ads;
 
-// MPU6050
-Adafruit_MPU6050 mpu;
+// MPU6050 sensors
+Adafruit_MPU6050 mpu_vibration; // Address 0x68 (AD0 to GND)
+Adafruit_MPU6050 mpu_tilt;      // Address 0x69 (AD0 to 3.3V)
 
 // FFT
 #define SAMPLES 64 // Must be power of 2
@@ -41,7 +42,7 @@ ArduinoFFT FFT = ArduinoFFT(vReal, vImag, SAMPLES, SAMPLING_FREQUENCY);
 // Thermal expansion calculation
 #define BRIDGE_LENGTH 50.0 // meters
 #define EXPANSION_COEFF 0.000012 // per degree Celsius (steel)
-#define EXPANSION_RATE_THRESHOLD_PER_HOUR 0.01 // meters/hour (example: 1cm/hr)
+#define EXPANSION_RATE_THRESHOLD_PER_HOUR 0.002 // meters/hour (example: 2mm/hr)
 
 // ------- Globals -------
 char auth[] = BLYNK_AUTH_TOKEN;
@@ -69,10 +70,10 @@ void sendAlert(String msg) {
 }
 
 void checkVibrationAndResonance() {
-  // Collect samples
+  // Collect samples from vibration MPU6050 (address 0x68)
   for (int i = 0; i < SAMPLES; i++) {
     sensors_event_t a, g, temp;
-    mpu.getEvent(&a, &g, &temp);
+    mpu_vibration.getEvent(&a, &g, &temp);
     vReal[i] = a.acceleration.x; // Use one axis or magnitude for complex analysis
     vImag[i] = 0;
     delay(1000 / SAMPLING_FREQUENCY);
@@ -106,7 +107,8 @@ void checkVibrationAndResonance() {
 
 void checkTilt() {
   sensors_event_t a, g, temp;
-  mpu.getEvent(&a, &g, &temp);
+  // Use the tilt MPU6050 (address 0x69)
+  mpu_tilt.getEvent(&a, &g, &temp);
 
   // Calculate tilt angle from accelerometer (simple pitch approximation)
   double pitch = atan2(a.acceleration.x, sqrt(pow(a.acceleration.y, 2) + pow(a.acceleration.z, 2))) * 180.0 / PI;
@@ -186,9 +188,14 @@ void setup() {
   Serial.begin(115200);
   Blynk.begin(auth, "YourWiFiSSID", "YourWiFiPassword");
 
-  // MPU6050
-  if (!mpu.begin()) {
-    Serial.println("Failed to find MPU6050 chip");
+  // MPU6050 - Vibration (AD0 to GND, address 0x68)
+  if (!mpu_vibration.begin(0x68)) {
+    Serial.println("Failed to find MPU6050 (vibration)");
+    while (1) delay(10);
+  }
+  // MPU6050 - Tilt (AD0 to 3.3V, address 0x69)
+  if (!mpu_tilt.begin(0x69)) {
+    Serial.println("Failed to find MPU6050 (tilt)");
     while (1) delay(10);
   }
 
