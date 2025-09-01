@@ -11,11 +11,6 @@
 #include <Adafruit_ADS1X15.h> // For strain gauge via ADC
 #include <arduinoFFT.h>
 
-// ---- User Config ----
-#define BLYNK_TEMPLATE_ID "YourTemplateID"
-#define BLYNK_DEVICE_NAME "YourDeviceName"
-#define BLYNK_AUTH_TOKEN "YourBlynkAuthToken"
-
 // Temperature sensors
 #define ONE_WIRE_BUS_1 4  // GPIO for first temperature sensor
 #define ONE_WIRE_BUS_2 5  // GPIO for second temperature sensor
